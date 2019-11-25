@@ -1311,15 +1311,20 @@ def visual_crawler(url, must_contain=""):
 
 class R:
     @staticmethod
-    def restful_decorator():
-        return \
-        """
-        require(plumber)
-        #* @get /mean?samples=1000
-        function(samples=10){
-            data <- rnorm(samples)
-            mean(data)
+    def restful_howto():
+        return {
+            "require": "plumber",
+            "decorator": "#* @get /<cmd>?<par>=<val>&<par>=<val>",
+            "example": \
+"""
+require(plumber)
+#* @get /mean?samples=1000
+function(samples=10){
+    data <- rnorm(samples)
+    mean(data)
+}
+> r <- plumb("myfile.R")
+> r$run(port=8000)
+"""
         }
-        > r <- plumb("myfile.R")
-        > r$run(port=8000)
-        """
+
