@@ -13,7 +13,9 @@ import time
 import PIL
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pyautogui
+import scipy.stats as scs
 import seaborn as sns
 import tensorflow as tf
 import win32api
@@ -661,6 +663,7 @@ def win_activateWindow(pattern: str = ".*", pos_rect: tuple = None):
         # TODO: obviously
         pass
 
+
 def win_segmentByCursor(box, cursor_type: str = ".*IDC_SIZENW.*", stride=[29, 13]):
     res = {}
 
@@ -956,6 +959,7 @@ def js_querySelectorAll(css_selector: str) -> str:
 def js_getElementFromPoint(x, y, browser):
     return browser.execute_script(f'return document.elementFromPoint({x},{y});')
 
+
 def selenium_startBrowser():
     browser = webdriver.Chrome()
     selenium_mouseTrack(browser)
@@ -1026,6 +1030,7 @@ def js_injectScript(browser, src: str = "file://P:/Bowtie/default.js", text: str
     browser.execute_script(code)
     return code
 
+
 def dockerfile_golang(volume='/var/log/golang', src='src', go_project='go_project', port=8000):
     return
     """
@@ -1036,6 +1041,7 @@ def dockerfile_golang(volume='/var/log/golang', src='src', go_project='go_projec
     CMD /go/bin/{}
     EXPOSE {}
     """.format(volume, src, go_project, go_project, port)
+
 
 def selenium_mouseTrack(browser):
     browser.execute_script(
@@ -1216,7 +1222,6 @@ class Bowtie:
         self.mouse_offset = self.getMouseOffset()
 
 
-
 class SimpleGraph:
     def __init__(self, numV: int = 0):
         self.numV = numV
@@ -1316,15 +1321,62 @@ class R:
             "require": "plumber",
             "decorator": "#* @get /<cmd>?<par>=<val>&<par>=<val>",
             "example": \
-"""
-require(plumber)
-#* @get /mean?samples=1000
-function(samples=10){
-    data <- rnorm(samples)
-    mean(data)
-}
-> r <- plumb("myfile.R")
-> r$run(port=8000)
-"""
+                """
+                require(plumber)
+                #* @get /mean?samples=1000
+                function(samples=10){
+                    data <- rnorm(samples)
+                    mean(data)
+                }
+                > r <- plumb("myfile.R")
+                > r$run(port=8000)
+                """
         }
 
+
+###########
+# Finance #
+###########
+class BS:
+    @staticmethod
+    def dollar_gamma(S, K, t, T, r, vol):
+        """
+        Returns European Call option dollar gamma : S*S*Gamma
+        :param S: Spot|Ft
+        :param K: Call Strike
+        :param t: current datetime
+        :param T: Call expiry datetime
+        :param r: constant risk-free interest rate
+        :param vol: constant underlying volatility
+        :return: S*S*Gamma
+
+        >>> round(BS.dollar_gamma(100,100,0,1,0,0.3),10)
+        131.4931103026
+        """
+        a = np.log(S / K) + (r + 0.5 * vol ** 2) * (T - t)
+        b = vol * math.sqrt(T - t)
+        d1 = a / b
+        gamma = scs.norm.pdf(d1) / (S * vol * math.sqrt(T - t))
+        return gamma * S ** 2
+
+    @staticmethod
+    def plot_dollar_gamma(t, T, r, vol, order=2, spot_range=np.linspace(0.0001, 300, 300),
+                          strike_range=range(10, 350, 10)):
+        """
+        plot dollar gamma of a vanilla portfolio weighted by K^(-order)
+        :param t:
+        :param T:
+        :param r:
+        :param vol:
+        :param order:
+        :return: figure
+        """
+        gammas = pd.DataFrame()
+        for K in strike_range:
+            gammas[f'K={K}'] = BS.dollar_gamma(spot_range, K, t, T, r, vol) / K ** order
+        gammas['sum'] = gammas.sum(axis=1)
+        fig = gammas.plot(figsize=(10, 5), legend=None)
+        plt.xlabel('index level')
+        plt.ylabel('dollar gamma')
+        plt.show()
+        return fig
