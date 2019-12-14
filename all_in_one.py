@@ -8,6 +8,7 @@ import math
 import os
 import re
 import statistics
+import random
 import time
 
 import PIL
@@ -426,71 +427,104 @@ def file_rename(original, tobe):
 ########
 # stat #
 ########
+class Stat:
+    @staticmethod
+    def mean(vec) -> float:
+        return statistics.mean(vec)
 
-def stat_mean(vec) -> float:
-    return statistics.mean(vec)
+    @staticmethod
+    def median(vec) -> float:
+        return statistics.median(vec)
+
+    @staticmethod
+    def mode(vec) -> float:
+        return statistics.mode(vec)
+
+    @staticmethod
+    def sort(vec, reverse=False):
+        return sorted(vec, reverse=reverse)
+
+    @staticmethod
+    def max(vec):
+        return max(vec)
+
+    @staticmethod
+    def min(vec):
+        return min(vec)
+
+    @staticmethod
+    def var(vec):
+        return statistics.variance(vec)
+
+    @staticmethod
+    def varp(vec):
+        return statistics.pvariance(vec)
+
+    @staticmethod
+    def sd(vec):
+        return statistics.stdev(vec)
+
+    @staticmethod
+    def sdp(vec):
+        """population sd"""
+        return statistics.pstdev(vec)
+
+    @staticmethod
+    def setseed(seed=1):
+        return np.random.seed(int(seed))
+
+    @staticmethod
+    def runifint(n, min, max, sess=None):
+        n, min, max = int(n), int(min), int(max)
+        if sess is None:
+            return np.random.randint(min, max, n)
+        else:
+            return sess.run(tf.random.uniform([n, ], min, max, dtype=tf.int32))
+
+    @staticmethod
+    def counts(vec):
+        ans = np.unique(vec, return_counts=True)
+        return list(zip(ans[0], ans[1]))
+
+    @staticmethod
+    def barplot(sets, measures, title='barplot', style='whitegrid', palette='bright'):
+        sns.set_style(style)
+        return sns.barplot(x=list(sets), y=list(measures), palette=palette)
 
 
-def stat_median(vec) -> float:
-    return statistics.median(vec)
+    @staticmethod
+    def rbern(p):
+        while 1:
+            if random.random() <= p:
+                yield 1
+            else:
+                yield 0
 
 
-def stat_mode(vec) -> float:
-    return statistics.mode(vec)
+class RandomSample:
+    def __init__(self, size=0, generator=Stat.rbern(0.5)):
+        self.size = size
+        self.law = generator
+        self.sample = None
+        self._perform_sampling()
+
+    def __repr__(self):
+        return str(self.sample)
+
+    def _perform_sampling(self):
+        self.sample = []
+        for i in range(self.size):
+            x = next(self.law)
+            self.sample.append(x)
 
 
-def stat_sort(vec, reverse=False):
-    return sorted(vec, reverse=reverse)
-
-
-def stat_max(vec):
-    return max(vec)
-
-
-def stat_min(vec):
-    return min(vec)
-
-
-def stat_var(vec):
-    return statistics.variance(vec)
-
-
-def stat_varp(vec):
-    return statistics.pvariance(vec)
-
-
-def stat_sd(vec):
-    return statistics.stdev(vec)
-
-
-def stat_sdp(vec):
-    return statistics.pstdev(vec)
-
-
-def stat_setseed(seed=1):
-    return np.random.seed(int(seed))
-
-
-def stat_runifint(n, min, max, sess=None):
-    n, min, max = int(n), int(min), int(max)
-    if sess is None:
-        return np.random.randint(min, max, n)
-    else:
-        return sess.run(tf.random.uniform([n, ], min, max, dtype=tf.int32))
-
+    def mean(self):
+        return Stat.mean(self.sample)
 
 def vec_index(vec, elem, start=0, end=-1):
     return vec.index(elem, start, end)
 
 
-def stat_counts(vec):
-    ans = np.unique(vec, return_counts=True)
-    return list(zip(ans[0], ans[1]))
-
-
-def stat_barplot(sets, measures, title='barplot', style='whitegrid', palette='bright'):
-    sns.set_style(style)
-    return sns.barplot(x=list(sets), y=list(measures), palette=palette)
 
 
 def vec_tolist(vec):
