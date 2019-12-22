@@ -1,16 +1,20 @@
 import copy
 import ctypes
 import datetime
+import calendar
 import inspect
 import json
 import logging
 import math
 import os
+import glob
 import re
 import statistics
 import random
 import time
-
+import pymysql
+import paramiko
+import sshtunnel
 import PIL
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,7 +31,9 @@ from desktopmagic.screengrab_win32 import (
     getRectAsImage)
 from pynput import (mouse, keyboard)
 from selenium import webdriver
-
+import urllib.request
+import csv
+import xlrd
 
 ##########
 # string #
@@ -57,6 +63,23 @@ def util_pwd() -> str:
 def util_timestamp() -> str:
     return datetime.datetime.isoformat(datetime.datetime.utcnow())
 
+def util_parseTimestamp(timestamp:str, fmt:str="%Y/%m/%d %H:%M") -> datetime.datetime:
+    return datetime.datetime.strptime(timestamp, fmt)
+
+def util_addMinutes(dt:datetime.datetime, minutes:int) -> datetime.datetime:
+    return datetime.timedelta(minutes=minutes) + dt
+
+def util_addSeconds(dt:datetime.datetime, seconds:int) -> datetime.datetime:
+    return datetime.timedelta(seconds=seconds) + dt
+
+def util_addHours(dt:datetime.datetime, hours:int) -> datetime.datetime:
+    return datetime.timedelta(hours=hours) + dt
+
+def util_addDays(dt:datetime.datetime, days:int) -> datetime.datetime:
+    return datetime.timedelta(days=days) + dt
+
+def util_addWeeks(dt:datetime.datetime, weeks:int) -> datetime.datetime:
+    return datetime.timedelta(weeks=weeks) + dt
 
 def util_getHomePath() -> str:
     return os.environ["userprofile"].replace("\\", "/") + "/"
@@ -994,8 +1017,16 @@ def js_getElementFromPoint(x, y, browser):
     return browser.execute_script(f'return document.elementFromPoint({x},{y});')
 
 
-def selenium_startBrowser():
-    browser = webdriver.Chrome()
+def selenium_startBrowser(browser_name:str = "Chrome"):
+    if browser_name == "Chrome":
+        browser = webdriver.Chrome()
+    elif browser_name =="Firefox":
+        browser = webdriver.Firefox()
+    elif browser_name == "Edge":
+        browser = webdriver.Edge()
+    else:
+        print(f"Unknown browser {browser_name}")
+        return None
     selenium_mouseTrack(browser)
     return browser
 
@@ -1414,3 +1445,111 @@ class BS:
         plt.ylabel('dollar gamma')
         plt.show()
         return fig
+
+def hkwarrant_info(ticker:int, url_base = r'https://sc.hkex.com.hk/TuniS/www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants/Derivative-Warrants-Quote?sc_lang=zh-cn')->str:
+    params = ["=".join("sym", str(ticker)), ]
+    return "&".join(params.insert(0, url_base))
+
+def util_download(url:str, filename:str):
+    return urllib.request.urlretrieve(url, filename)
+
+def bash_download(url:str):
+    return "wget " + url
+
+def hkwarrant_info(ticker:int=11498)->str:
+    url_base = r'https://sc.hkex.com.hk/TuniS/www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants/'
+    url = url_base + r'Derivative-Warrants-Quote?sc_lang=zh-cn'
+    param = "sym=" + str(ticker)
+    return "&".join([url,param])
+
+def util_ListYetToDownload(downloaded_glob:str, fulllist:list, pathfunc_f2d=None, pathfunc_d2f=None):
+    if not pathfunc_f2d:
+        pathfunc_f2d = lambda x: x
+    if not pathfunc_d2f:
+        pathfunc_d2f = lambda x: x
+    set_f = set(map(pathfunc_f2d, fulllist))
+    set_d = set(map(pathfunc_d2f(glob.glob(downloaded_glob))))
+    return set_difference(set_f, set_d)
+
+def hkwarrant_remaining(dir_d:str, full:str):
+    n = len(dir_d)
+    fil_d = "DWs_*.xlsx"
+    lst_d = [int(x[(n+4):(n+9)]) for x in glob.glob(dir_d + fil_d)]
+    print(lst_d)
+
+    lst_f = []
+    with open(full, "r") as file_f:
+        for line in file_f:
+            lst_f.append(int(line[:5]))
+    print(lst_f)
+
+    res = set(lst_f).difference(set(lst_d))
+    print(res)
+
+    return list(res)
+
+def bash_charsetconv(f:str, t:str, filename):
+    return f"iconv -f {f} -t {t} {filename}"
+
+def csv_read_np(filename:str, delim:str=","):
+    return np.genfromtxt(filename, delim)
+
+def sshexecsql(sqlquery:str,pem:str,sql_hostname='127.0.0.1',sql_username:str=None,sql_password:str=None,
+               sql_main_database=None,sql_port=3306,ssh_host=None,ssh_user=None,ssh_port= 22):
+    if not sqlquery:
+        return
+    mypkey = paramiko.RSAKey.from_private_key_file(pem)
+
+    with sshtunnel.SSHTunnelForwarder(
+            (ssh_host, ssh_port),
+            ssh_username=ssh_user,
+            ssh_pkey=mypkey,
+            remote_bind_address=(sql_hostname, sql_port)) as tunnel:
+        conn = pymysql.connect(host=sql_hostname, user=sql_username,
+                passwd=sql_password, db=sql_main_database,
+                port=tunnel.local_bind_port)
+        query = sqlquery
+        cur = conn.cursor()
+        cur.execute(query)
+        conn.commit()
+        result = cur.fetchall()
+        conn.close()
+        return result
+
+
+def hkwarrant_saveEODMarketSummary(filename:str="P:/util/data/dwFullList2.csv", updated:str=None, pem=None,sql_username=None,sql_password=None,ssh_host=None,ssh_user=None):
+    if updated is None:
+        return
+    sqlquery_daily = f"INSERT INTO `hkwarrant`.`dwdaily`(`DW Code`,`O/S (%)`,`Delta (%)`,`IV. (%)`,`Trading Currency`,`Day High`,`Day Low`,`Closing Price`,`T/O ('000)`,`UL Currency`,`UL Price`,`Updated`) VALUES "
+    sqlquery_static = f"INSERT IGNORE INTO `hkwarrant`.`dwstatic`(`DW Code`,`Issuer`,`UL`,`Call/Put`,`DW Type`,`Listing`,`Maturity`,`Strike Currency`,`Strike`,`Entitlement Ratio^`,`Total Issue Size`,`Updated`) VALUES "
+    with open(filename, "r") as csvfile:
+        for line in csvfile:
+            line = line.split(",")
+            for k in [5,6]:
+                dd,mm,yy = line[k].split("-")
+                line[k] = "-".join([yy,mm,dd])
+            for k in range(len(line)):
+                if line[k] in ["-","N/A",""]:
+                    line[k] = "NULL"
+                else:
+                    if line[k][-1] == '\n':
+                        line[k] = '"' + line[k][:-1] + '"'
+                    else:
+                        line[k] = '"' + line[k] + '"'
+
+            rel_line = []
+            for i_rel in [0] + list(range(11,21)):
+                rel_line.append(line[i_rel])
+            sqlquery_daily += "(" + ",".join(rel_line) + f',"{updated}"),'
+
+            sta_line = []
+            for i_sta in range(11):
+                sta_line.append(line[i_sta])
+            sqlquery_static += "(" + ",".join(sta_line) + f',"{updated}"),'
+
+    for sqlquery in [sqlquery_daily, sqlquery_static]:
+        sqlquery = sqlquery[:-1] + ";"
+        print(sqlquery)
+        sshexecsql(sqlquery)
+        sshexecsql(sqlquery, pem, "127.0.0.1", sql_username, sql_password, "hkwarrant", 3306, ssh_host, ssh_user, 22)
+
