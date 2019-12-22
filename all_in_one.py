@@ -1447,8 +1447,9 @@ class BS:
         return fig
 
 def hkwarrant_info(ticker:int, url_base = r'https://sc.hkex.com.hk/TuniS/www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants/Derivative-Warrants-Quote?sc_lang=zh-cn')->str:
-    params = ["=".join("sym", str(ticker)), ]
-    return "&".join(params.insert(0, url_base))
+    params = ["=".join(["sym", str(ticker)])]
+    params.insert(0, url_base)
+    return "&".join(params)
 
 def util_download(url:str, filename:str):
     return urllib.request.urlretrieve(url, filename)
@@ -1457,18 +1458,18 @@ def bash_download(url:str):
     return "wget " + url
 
 def util_ListYetToDownload(downloaded_glob:str, fulllist:list, pathfunc_f2d=None, pathfunc_d2f=None):
-    if not pathfunc_f2d:
+    if pathfunc_f2d is None:
         pathfunc_f2d = lambda x: x
-    if not pathfunc_d2f:
+    if pathfunc_d2f is None:
         pathfunc_d2f = lambda x: x
     set_f = set(map(pathfunc_f2d, fulllist))
-    set_d = set(map(pathfunc_d2f(glob.glob(downloaded_glob))))
+    set_d = set(map(pathfunc_d2f, glob.glob(downloaded_glob)))
     return set_difference(set_f, set_d)
 
-def hkwarrant_remaining(dir_d:str, full:str):
+def hkwarrant_remaining(dir_d:str, full:str, fil_d = "DWs_*.xlsx"):
     n = len(dir_d)
-    fil_d = "DWs_*.xlsx"
-    lst_d = [int(x[(n+4):(n+9)]) for x in glob.glob(dir_d + fil_d)]
+    a,b = fil_d.split("_")
+    lst_d = [int(x[(n+len(a)+1):].split(".")[0]) for x in glob.glob(dir_d + fil_d)]
     print(lst_d)
 
     lst_f = []
@@ -1514,7 +1515,7 @@ def sshexecsql(sqlquery:str,pem:str,sql_hostname='127.0.0.1',sql_username:str=No
 def hkwarrant_saveEODMarketSummary(filename:str="P:/util/data/dwFullList2.csv", updated:str=None, pem=None,sql_username=None,sql_password=None,ssh_host=None,ssh_user=None):
     if updated is None:
         return
-    sqlquery_daily = f"INSERT INTO `hkwarrant`.`dwdaily`(`DW Code`,`O/S (%)`,`Delta (%)`,`IV. (%)`,`Trading Currency`,`Day High`,`Day Low`,`Closing Price`,`T/O ('000)`,`UL Currency`,`UL Price`,`Updated`) VALUES "
+    sqlquery_daily = f"INSERT IGNORE INTO `hkwarrant`.`dwdaily`(`DW Code`,`O/S (%)`,`Delta (%)`,`IV. (%)`,`Trading Currency`,`Day High`,`Day Low`,`Closing Price`,`T/O ('000)`,`UL Currency`,`UL Price`,`Updated`) VALUES "
     sqlquery_static = f"INSERT IGNORE INTO `hkwarrant`.`dwstatic`(`DW Code`,`Issuer`,`UL`,`Call/Put`,`DW Type`,`Listing`,`Maturity`,`Strike Currency`,`Strike`,`Entitlement Ratio^`,`Total Issue Size`,`Updated`) VALUES "
     with open(filename, "r") as csvfile:
         for line in csvfile:
@@ -1530,6 +1531,9 @@ def hkwarrant_saveEODMarketSummary(filename:str="P:/util/data/dwFullList2.csv", 
                         line[k] = '"' + line[k][:-1] + '"'
                     else:
                         line[k] = '"' + line[k] + '"'
+            for k in range(len(line)):
+                if line[k] in ['"-"','"N/A"','""']:
+                    line[k] = "NULL"
 
             rel_line = []
             for i_rel in [0] + list(range(11,21)):
