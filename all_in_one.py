@@ -1456,12 +1456,6 @@ def util_download(url:str, filename:str):
 def bash_download(url:str):
     return "wget " + url
 
-def hkwarrant_info(ticker:int=11498)->str:
-    url_base = r'https://sc.hkex.com.hk/TuniS/www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants/'
-    url = url_base + r'Derivative-Warrants-Quote?sc_lang=zh-cn'
-    param = "sym=" + str(ticker)
-    return "&".join([url,param])
-
 def util_ListYetToDownload(downloaded_glob:str, fulllist:list, pathfunc_f2d=None, pathfunc_d2f=None):
     if not pathfunc_f2d:
         pathfunc_f2d = lambda x: x
@@ -1550,6 +1544,5 @@ def hkwarrant_saveEODMarketSummary(filename:str="P:/util/data/dwFullList2.csv", 
     for sqlquery in [sqlquery_daily, sqlquery_static]:
         sqlquery = sqlquery[:-1] + ";"
         print(sqlquery)
-        sshexecsql(sqlquery)
         sshexecsql(sqlquery, pem, "127.0.0.1", sql_username, sql_password, "hkwarrant", 3306, ssh_host, ssh_user, 22)
 
