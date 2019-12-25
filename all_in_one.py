@@ -1550,3 +1550,7 @@ def hkwarrant_saveEODMarketSummary(filename:str="P:/util/data/dwFullList2.csv", 
         print(sqlquery)
         sshexecsql(sqlquery, pem, "127.0.0.1", sql_username, sql_password, "hkwarrant", 3306, ssh_host, ssh_user, 22)
 
+def hkwarrant_lastUpdatedDate(infofile="data/dwUpdated.txt"):
+    with open(infofile,"r") as file:
+        ans = file.readline()
+    return ans[:10]
